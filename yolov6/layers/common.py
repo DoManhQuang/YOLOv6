@@ -11,10 +11,32 @@ from torch.nn.parameter import Parameter
 from yolov6.utils.general import download_ckpt
 
 
-activation_table = {'relu':nn.ReLU(),
-                    'silu':nn.SiLU(),
-                    'hardswish':nn.Hardswish()
-                    }
+class SegReLU(nn.Module):
+    """ 
+        Activation of SegReLU 
+        https://github.com/DoManhQuang/intrusion-detection/blob/main/core/deep_model.py#L11
+        @INPROCEEDINGS{10079326,
+        author={Vu, Viet-Thang and Thi, Thanh Quyen Bui and Gan, Hong-Seng and Vu, Viet-Vu and Quang, Do Manh and Duc, Vu Thanh and Pham, Dinh-Lam},
+        booktitle={2023 25th International Conference on Advanced Communication Technology (ICACT)}, 
+        title={Activation functions for deep learning: an application for rare attack detection in wireless local area network (WLAN)}, 
+        year={2023},
+        volume={},
+        number={},
+        pages={59-64},
+        doi={10.23919/ICACT56868.2023.10079326}}
+    """
+    @staticmethod
+    def forward(x):
+        return torch.where(x > 0, x, torch.nn.Softsign()(x))
+
+
+activation_table = {
+    'relu':nn.ReLU(),
+    'silu':nn.SiLU(),
+    'hardswish':nn.Hardswish(),
+    'seg_relu': SegReLU()
+}
+
 
 class SiLU(nn.Module):
     '''Activation of SiLU'''
@@ -52,6 +74,16 @@ class ConvModule(nn.Module):
         if self.activation_type is None:
             return self.conv(x)
         return self.act(self.conv(x))
+
+
+class ConvBNSegReLU(nn.Module):
+    '''Conv and BN with SegReLU activation'''
+    def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=None, groups=1, bias=False):
+        super().__init__()
+        self.block = ConvModule(in_channels, out_channels, kernel_size, stride, 'seg_relu', padding, groups, bias)
+
+    def forward(self, x):
+        return self.block(x)
 
 
 class ConvBNReLU(nn.Module):
@@ -112,6 +144,16 @@ class SPPFModule(nn.Module):
             return self.cv2(torch.cat([x, y1, y2, self.m(y2)], 1))
 
 
+class SegSPPF(nn.Module):
+    '''Simplified SPPF with SegReLU activation'''
+    def __init__(self, in_channels, out_channels, kernel_size=5, block=ConvBNSegReLU):
+        super().__init__()
+        self.sppf = SPPFModule(in_channels, out_channels, kernel_size, block)
+
+    def forward(self, x):
+        return self.sppf(x)
+    
+
 class SimSPPF(nn.Module):
     '''Simplified SPPF with ReLU activation'''
     def __init__(self, in_channels, out_channels, kernel_size=5, block=ConvBNReLU):
@@ -156,6 +198,16 @@ class CSPSPPFModule(nn.Module):
             y2 = self.m(y1)
             y3 = self.cv6(self.cv5(torch.cat([x1, y1, y2, self.m(y2)], 1)))
         return self.cv7(torch.cat((y0, y3), dim=1))
+
+
+class SegCSPSPPF(nn.Module):
+    '''CSPSPPF with SegReLU activation'''
+    def __init__(self, in_channels, out_channels, kernel_size=5, e=0.5, block=ConvBNSegReLU):
+        super().__init__()
+        self.cspsppf = CSPSPPFModule(in_channels, out_channels, kernel_size, e, block)
+
+    def forward(self, x):
+        return self.cspsppf(x)
 
 
 class SimCSPSPPF(nn.Module):
@@ -639,10 +691,16 @@ class BepC3(nn.Module):
         self.cv1 = ConvBNReLU(in_channels, c_, 1, 1)
         self.cv2 = ConvBNReLU(in_channels, c_, 1, 1)
         self.cv3 = ConvBNReLU(2 * c_, out_channels, 1, 1)
+        
         if block == ConvBNSiLU:
             self.cv1 = ConvBNSiLU(in_channels, c_, 1, 1)
             self.cv2 = ConvBNSiLU(in_channels, c_, 1, 1)
             self.cv3 = ConvBNSiLU(2 * c_, out_channels, 1, 1)
+        
+        if block == ConvBNSegReLU:
+            self.cv1 = ConvBNSegReLU(in_channels, c_, 1, 1)
+            self.cv2 = ConvBNSegReLU(in_channels, c_, 1, 1)
+            self.cv3 = ConvBNSegReLU(2 * c_, out_channels, 1, 1)
 
         self.m = RepBlock(in_channels=c_, out_channels=c_, n=n, block=BottleRep, basic_block=block)
 
@@ -676,6 +734,10 @@ class MBLABlock(nn.Module):
         if block == ConvBNSiLU:
             self.cv1 = ConvModule(in_channels, branch_num * self.c, 1, 1, 'silu', bias=False)
             self.cv2 = ConvModule((sum(n_list) + branch_num) * self.c, out_channels, 1, 1,'silu', bias=False)
+
+        if block == ConvBNSegReLU:
+            self.cv1 = ConvModule(in_channels, branch_num * self.c, 1, 1, 'seg_relu', bias=False)
+            self.cv2 = ConvModule((sum(n_list) + branch_num) * self.c, out_channels, 1, 1,'seg_relu', bias=False)
 
         self.m = nn.ModuleList()
         for n_list_i in n_list[1:]:
@@ -733,6 +795,8 @@ def get_block(mode):
         return ConvBNReLU
     elif mode == 'conv_silu':
         return ConvBNSiLU
+    elif mode == 'conv_segrelu':
+        return ConvBNSegReLU
     else:
         raise NotImplementedError("Undefied Repblock choice for mode {}".format(mode))
 
