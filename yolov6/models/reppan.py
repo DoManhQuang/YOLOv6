@@ -1,7 +1,7 @@
 import torch
 from torch import nn
 from yolov6.layers.common import RepBlock, RepVGGBlock, BottleRep, BepC3, ConvBNReLU, Transpose, BiFusion, \
-                                MBLABlock, ConvBNHS, CSPBlock, DPBlock
+                                MBLABlock, ConvBNHS, CSPBlock, DPBlock, ConvBNSegReLU, ConvBNSiLU
 
 # _QUANT=False
 class RepPANNeck(nn.Module):
@@ -984,9 +984,11 @@ class CSPRepBiFPANNeck_P6(nn.Module):
             stride=1
         )
 
+
         self.Bifusion0 = BiFusion(
             in_channels=[channels_list[4], channels_list[6]], # 768, 512
             out_channels=channels_list[6], # 512
+            block=block
         )
 
         self.Rep_p5 = stage_block(
@@ -1007,6 +1009,7 @@ class CSPRepBiFPANNeck_P6(nn.Module):
         self.Bifusion1 = BiFusion(
             in_channels=[channels_list[3], channels_list[7]], # 512, 256
             out_channels=channels_list[7], # 256
+            block=block
         )
 
         self.Rep_p4 = stage_block(
@@ -1027,6 +1030,7 @@ class CSPRepBiFPANNeck_P6(nn.Module):
         self.Bifusion2 = BiFusion(
             in_channels=[channels_list[2], channels_list[8]], # 256, 128
             out_channels=channels_list[8], # 128
+            block=block
         )
 
         self.Rep_p3 = stage_block(
