@@ -332,22 +332,10 @@ class CSPBepBackbone(nn.Module):
             )
         )
 
-        channel_merge_layer = SegSPPF
-        if block == ConvBNSegReLU:
-            channel_merge_layer = SegSPPF
-        elif block == ConvBNSiLU:
-            channel_merge_layer = SPPF
-        else:
-            channel_merge_layer = SimSPPF
-        
+        channel_merge_layer = SPPF if block == ConvBNSiLU else SimSPPF
         if cspsppf:
-            if block == ConvBNSegReLU:
-                channel_merge_layer = SegCSPSPPF
-            elif block == ConvBNSiLU:
-                channel_merge_layer = SPPF
-            else:
-                channel_merge_layer = SimSPPF
-        
+            channel_merge_layer = CSPSPPF if block == ConvBNSiLU else SimCSPSPPF
+
         self.ERBlock_5 = nn.Sequential(
             block(
                 in_channels=channels_list[3],

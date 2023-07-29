@@ -756,21 +756,11 @@ class MBLABlock(nn.Module):
 
 class BiFusion(nn.Module):
     '''BiFusion Block in PAN'''
-    def __init__(self, in_channels, out_channels, block=ConvBNReLU):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
         self.cv1 = ConvBNReLU(in_channels[0], out_channels, 1, 1)
         self.cv2 = ConvBNReLU(in_channels[1], out_channels, 1, 1)
         self.cv3 = ConvBNReLU(out_channels * 3, out_channels, 1, 1)
-
-        if block == ConvBNSiLU:
-            self.cv1 = ConvBNSiLU(in_channels[0], out_channels, 1, 1)
-            self.cv2 = ConvBNSiLU(in_channels[1], out_channels, 1, 1)
-            self.cv3 = ConvBNSiLU(out_channels * 3, out_channels, 1, 1)
-
-        if block == ConvBNSegReLU:
-            self.cv1 = ConvBNSegReLU(in_channels[0], out_channels, 1, 1)
-            self.cv2 = ConvBNSegReLU(in_channels[1], out_channels, 1, 1)
-            self.cv3 = ConvBNSegReLU(out_channels * 3, out_channels, 1, 1)
 
         self.upsample = Transpose(
             in_channels=out_channels,
@@ -782,23 +772,6 @@ class BiFusion(nn.Module):
             kernel_size=3,
             stride=2
         )
-
-        if block == ConvBNSiLU:
-            self.downsample = ConvBNSiLU(
-            in_channels=out_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            stride=2
-        )
-
-        if block == ConvBNSegReLU:
-            self.downsample = ConvBNSiLU(
-            in_channels=out_channels,
-            out_channels=out_channels,
-            kernel_size=3,
-            stride=2
-        )  
-        
 
     def forward(self, x):
         x0 = self.upsample(x[0])
