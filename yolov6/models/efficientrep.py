@@ -1,6 +1,6 @@
 from pickle import FALSE
 from torch import nn
-from yolov6.layers.common import BottleRep, RepVGGBlock, RepBlock, BepC3, SimSPPF, SPPF, SimCSPSPPF, CSPSPPF, ConvBNSiLU, \
+from yolov6.layers.common import BottleRep, RepVGGBlock, RepBlock, BepC3, SimSPPF, SPPF, SegSPPF, SegCSPSPPF, SimCSPSPPF, CSPSPPF, ConvBNSegReLU, ConvBNSiLU, \
                                 MBLABlock, ConvBNHS, Lite_EffiBlockS2, Lite_EffiBlockS1
 
 
@@ -457,10 +457,17 @@ class CSPBepBackbone_P6(nn.Module):
                 block=block,
             )
         )
-
-        channel_merge_layer = SPPF if block == ConvBNSiLU else SimSPPF
+        channel_merge_layer = SegSPPF
+        if block == ConvBNSegReLU:
+            channel_merge_layer = SegSPPF
+        else:
+            channel_merge_layer = SPPF if block == ConvBNSiLU else SimSPPF
+        
         if cspsppf:
-            channel_merge_layer = CSPSPPF if block == ConvBNSiLU else SimCSPSPPF
+            if block == ConvBNSegReLU:
+                channel_merge_layer = SegCSPSPPF
+            else:
+                channel_merge_layer = CSPSPPF if block == ConvBNSiLU else SimCSPSPPF
 
         self.ERBlock_5 = nn.Sequential(
             block(
